@@ -1,0 +1,279 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use JSON;
+use List::Util qw( shuffle );
+use Memoize;
+memoize('splash');
+
+
+# shard rates for MIRV options to match current Snark II & III hits
+my @mirv_rate = (
+    ([1,3,5]) x 4,
+    ([1,5,6]) x 8,
+    ([1,5,9]) x 28,
+    ([1,8,7]) x 4,
+    ([1,8,11]) x 28,
+    ([1,8,16]) x 49,
+);
+
+# 121 spaces on a planet (-5,-5) to (5,5)
+my @grid;
+my %on_grid;
+for my $x ( -5 .. 5 ){
+    for my $y ( -5 .. 5 ) {
+        push @grid, ( [ $x, $y ] );
+        $on_grid{$x}{$y} = 1;
+    }
+}
+
+# number of spaces with a building built on it
+my $buildings = 65;
+die "Buildings must be between 30 and 121."
+    if ( $buildings !~ /\A[0-9]+\z/xms
+        or $buildings < 30
+        or $buildings > 121
+    );
+
+# number of test planets to hit to run
+my $planets = 30_000;
+die "planets must be a positive integer."
+    if ( $planets !~ /\A[0-9]+\z/xms
+        or $planets < 1
+    );
+# number of test shots to run per planet
+my $shots = 20;
+die "shots must be a positive integer."
+    if ( $shots !~ /\A[0-9]+\z/xms
+        or $shots < 1
+    );
+
+# things that hit to run for each hit
+my @to_test = (
+    [ 'snark_ii', \&snark_ii ],
+    [ 'snark_ii_mirv', \&snark_ii_mirv ],
+    [ 'snark_iii', \&snark_iii ],
+    [ 'snark_iii_mirv', \&snark_iii_mirv ]
+);
+
+my %results;
+my $total_shots = 0;
+
+# make a random planet
+for ( 1 .. $planets ) {
+    # skip index 0 as we just need any $buildings plots
+    my @built =  (shuffle( @grid ))[1 .. $buildings];
+    my %built_on;
+    map { $built_on{$_->[0]}{$_->[1]} = 1 } @built;
+
+    # hit said planet a lot
+    for ( 1.. $shots ) {
+        # count the shot
+        $total_shots += 1;
+
+        # fire each test
+        for my $test ( @to_test ){
+            my $name = $test->[0];
+            my $gun = $test->[1];
+
+            my $count = $gun->( \@built, \%built_on );
+            for my $type ( qw( primary secondary tertiary ) ) {
+                $results{$name}{$type} += $count->{$type};
+            }
+        } # each test
+    } # each shot
+} # each planet
+
+print "Totals:\n";
+my $pretty = JSON->new->pretty()->canonical->encode( \%results );
+print $pretty;
+
+print "\nAverages:\n";
+for my $gun ( sort ( keys %results ) ){
+    print "  $gun:\n";
+    for my $type ( sort ( keys %{$results{$gun}} ) ){
+        my $total = $results{$gun}{$type};
+        my $avg = $total / $total_shots;
+        printf "%20s %9.4f\n", $type, $avg;
+        #$results{$gun}{$type} = $total / $total_shots;
+    }
+}
+
+
+
+sub splash {
+    my $x = shift;
+    my $y = shift;
+
+    my %primary;
+    $primary{$x}{$y} = 1;
+    my %secondary;
+    my %tertiary;
+
+    my $x1 = $x - 1;
+    my $x2 = $x + 1;
+    my $y1 = $y - 1;
+    my $y2 = $y + 1;
+    for my $x ( $x1 .. $x2 ){
+        for my $y ( $y1 .. $y2 ) {
+            $secondary{$x}{$y} = 1
+                unless ( $primary{$x}{$y} );
+        }
+    }
+
+    $x1 = $x - 2;
+    $x2 = $x + 2;
+    $y1 = $y - 2;
+    $y2 = $y + 2;
+    for $x ( $x1 .. $x2 ){
+        for $y ( $y1 .. $y2 ) {
+            $tertiary{$x}{$y} = 1
+                unless ( $primary{$x}{$y}
+                    or $secondary{$x}{$y}
+                );
+        }
+    }
+    
+    return {
+        primary   => \%primary,
+        secondary => \%secondary,
+        tertiary  => \%tertiary,
+    };
+}
+
+# return hits of a snark_ii
+sub snark_ii {
+    my @built = @{shift()};
+    my %built_on = %{shift()};
+    my $secondary = 0;
+
+    my $hit = $built[ rand @built ];
+    
+    my $hits = splash( $hit->[0], $hit->[1] );
+    my %sec = %{$hits->{secondary}};
+
+    for my $x ( keys %sec ){
+        for my $y ( keys %{$sec{$x}} ){
+            $secondary++ if ( $built_on{$x}{$y} );
+        }
+    }
+
+    return {
+        primary   => 1,
+        secondary => $secondary,
+        tertiary  => 0,
+    };
+}
+
+# return hits of a snark_iii
+sub snark_iii {
+    my @built = @{shift()};
+    my %built_on = %{shift()};
+    my $secondary = 0;
+    my $tertiary = 0;
+
+    my $hit = $built[ rand @built ];
+    
+    my $hits = splash( $hit->[0], $hit->[1] );
+    my %sec = %{$hits->{secondary}};
+    my %ter = %{$hits->{tertiary}};
+
+    for my $x ( keys %sec ){
+        for my $y ( keys %{$sec{$x}} ){
+            $secondary++ if ( $built_on{$x}{$y} );
+        }
+    }
+
+    for my $x ( keys %ter ){
+        for my $y ( keys %{$ter{$x}} ){
+            $tertiary++ if ( $built_on{$x}{$y} );
+        }
+    }
+
+    return {
+        primary   => 1,
+        secondary => $secondary,
+        tertiary  => $tertiary,
+    };
+}
+
+# return hits of a snark_ii_mirv
+sub snark_ii_mirv {
+    my @built = @{shift()};
+    my %built_on = %{shift()};
+    my $secondary = 0;
+
+    # use $mirv_rate to get shard counts
+    my $shards = $mirv_rate[ rand @mirv_rate ];
+
+    die "Something is wrong, only on primary hit"
+        if ( $shards->[0] != 1 );
+
+    # hit one building
+    my $hit = $built[ rand @built ];
+    my $x = $hit->[0];
+    my $y = $hit->[1];
+   
+    # list for shard hits is all but the primary hit
+    my @options = grep { ( $_->[0] != $x and $_->[1] != $y ) } @grid;
+    # in a random order
+    my @target_list = shuffle( @options );
+
+    # secondary shard hits
+    for ( 1 .. $shards->[1] ){
+        my ( $x, $y ) = @{ shift @target_list };
+        $secondary++
+            if ( exists $built_on{$x}{$y} );
+    }
+
+    return {
+        primary   => 1,
+        secondary => $secondary,
+        tertiary  => 0,
+    };
+}
+
+# return hits of a snark_iii_mirv
+sub snark_iii_mirv {
+    my @built = @{shift()};
+    my %built_on = %{shift()};
+    my $secondary = 0;
+    my $tertiary = 0;
+
+    # use $mirv_rate to get shard counts
+    my $shards = $mirv_rate[ rand @mirv_rate ];
+
+    die "Something is wrong, only on primary hit"
+        if ( $shards->[0] != 1 );
+
+    # hit one building
+    my $hit = $built[ rand @built ];
+    my $x = $hit->[0];
+    my $y = $hit->[1];
+   
+    # list for shard hits is all but the primary hit
+    my @options = grep { ( $_->[0] != $x and $_->[1] != $y ) } @grid;
+    # in a random order
+    my @target_list = shuffle( @options );
+
+    # secondary shard hits
+    for ( 1 .. $shards->[1] ){
+        my ( $x, $y ) = @{ shift @target_list };
+        $secondary++
+            if ( exists $built_on{$x}{$y} );
+    }
+
+    # tertiary shard hits
+    for ( 1 .. $shards->[2] ){
+        my ( $x, $y ) = @{ shift @target_list };
+        $tertiary++
+            if ( exists $built_on{$x}{$y} );
+    }
+
+    return {
+        primary   => 1,
+        secondary => $secondary,
+        tertiary  => $tertiary,
+    };
+}

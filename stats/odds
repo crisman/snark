@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use JSON;
+use List::Util qw( shuffle );
+
+# 121 spaces on a planet (-5,-5) to (5,5)
+my @grid;
+my %on_grid;
+for my $x ( -5 .. 5 ){
+    for my $y ( -5 .. 5 ) {
+        push @grid, ( [ $x, $y ] );
+        $on_grid{$x}{$y} = 1;
+    }
+}
+
+my %rate;
+
+for my $target ( @grid ){
+    my ( $one, $two, $three ) = splash_on_grid( @$target );
+    $rate{'snark_ii'}{"$one $two"}++;
+    $rate{'snark_iii'}{"$one $two $three"}++;
+}
+
+my $pretty = JSON->new->pretty()->canonical->encode( \%rate );
+print $pretty;
+
+sub splash_on_grid {
+    my $x = shift;
+    my $y = shift;
+
+    my %primary;
+    $primary{$x}{$y} = 1;
+    my %secondary;
+    my %tertiary;
+
+    my $one = 1; # primary always hits
+    my $two = 0;
+    my $three = 0;
+
+    my $x1 = $x - 1;
+    my $x2 = $x + 1;
+    my $y1 = $y - 1;
+    my $y2 = $y + 1;
+    for my $x ( $x1 .. $x2 ){
+        for my $y ( $y1 .. $y2 ) {
+            if ( exists $on_grid{$x}{$y}
+                and ! exists $primary{$x}{$y}
+            ) {
+                $secondary{$x}{$y} = 1;
+                $two++;
+            }
+        }
+    }
+
+    $x1 = $x - 2;
+    $x2 = $x + 2;
+    $y1 = $y - 2;
+    $y2 = $y + 2;
+    for $x ( $x1 .. $x2 ){
+        for $y ( $y1 .. $y2 ) {
+            if ( exists $on_grid{$x}{$y}
+                and ! exists $primary{$x}{$y}
+                and ! exists $secondary{$x}{$y}
+            ) {
+                $tertiary{$x}{$y} = 1;
+                $three++;
+            }
+        }
+    }
+    
+    return ( $one, $two, $three );
+}
+

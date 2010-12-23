@@ -1,0 +1,41 @@
+Totals:
+{
+   "snark_ii" : {
+      "primary" : 600000,
+      "secondary" : 2221290,
+      "tertiary" : 0
+   },
+   "snark_ii_mirv" : {
+      "primary" : 600000,
+      "secondary" : 2220745,
+      "tertiary" : 0
+   },
+   "snark_iii" : {
+      "primary" : 600000,
+      "secondary" : 2223709,
+      "tertiary" : 3811020
+   },
+   "snark_iii_mirv" : {
+      "primary" : 600000,
+      "secondary" : 2222178,
+      "tertiary" : 3806784
+   }
+}
+
+Averages:
+  snark_ii:
+             primary    1.0000
+           secondary    3.7022
+            tertiary    0.0000
+  snark_ii_mirv:
+             primary    1.0000
+           secondary    3.7012
+            tertiary    0.0000
+  snark_iii:
+             primary    1.0000
+           secondary    3.7062
+            tertiary    6.3517
+  snark_iii_mirv:
+             primary    1.0000
+           secondary    3.7036
+            tertiary    6.3446
