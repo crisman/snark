@@ -1,0 +1,12 @@
+
+./damage
+    # different building hit rates for:
+        # current Snark II & III
+        # and MIRV style for the same
+./odds
+    # generate the odds of each plot hit count
+
+./sample_run_30000x20.txt
+    # output from a run over 30,000 planets
+    # with 20 hits for each type of snark
+

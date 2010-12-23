@@ -37,7 +37,7 @@ die "Buildings must be between 30 and 121."
     );
 
 # number of test planets to hit to run
-my $planets = 30_000;
+my $planets = 10_000;
 die "planets must be a positive integer."
     if ( $planets !~ /\A[0-9]+\z/xms
         or $planets < 1
